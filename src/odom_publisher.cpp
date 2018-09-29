@@ -44,11 +44,11 @@ void calc_pose_from_odom(const ros::TimerEvent& event)
 
 
 }
-void pose_update_callback(const geometry_msgs::PoseStamped &msg)
+void pose_update_callback(const geometry_msgs::PoseWithCovarianceStamped &msg)
 {
-     pose_x = msg.pose.position.x;
-     pose_y = msg.pose.position.y;
-     pose_theta = tf2::getYaw(msg.pose.orientation);
+     pose_x = msg.pose.pose.position.x;
+     pose_y = msg.pose.pose.position.y;
+     pose_theta = tf2::getYaw(msg.pose.pose.orientation);
 
 }
 
