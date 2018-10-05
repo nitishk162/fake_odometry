@@ -11,8 +11,10 @@ double vth = 0.0;
 double pose_x = 0.0, pose_y = 0.0, pose_theta = 0.0;
 
 ros::Time pose_current_time, pose_last_time;
-ros::Publisher pose_from_odom_pub;
+ros::Time ground_current_time, ground_last_time;
+ros::Publisher pose_from_odom_pub, ground_pose_pub;
 uint64_t seq_id = 0;
+double true_x = 0.0, true_y = 0.0, true_theta = 0.0;
 
 
 void calc_pose_from_odom(const ros::TimerEvent& event)
@@ -44,11 +46,51 @@ void calc_pose_from_odom(const ros::TimerEvent& event)
 
 
 }
+
+void calc_ground_truth(const ros::TimerEvent& event)
+{
+     seq_id++;
+     ground_current_time = ros::Time::now();
+     double dt = (ground_current_time - ground_last_time).toSec();
+     double delta_x = (vx * cos(true_theta) - vy * sin(true_theta)) * dt;
+     double delta_y = (vx * sin(true_theta) + vy * cos(true_theta)) * dt;
+     double delta_th = vth * dt;
+
+     true_x += delta_x;
+     true_y += delta_y;
+     true_theta += delta_th;
+     geometry_msgs::PoseStamped pose_stamped;
+     tf2::Quaternion q;
+     q.setRPY(0, 0, true_theta);
+     geometry_msgs::Quaternion pose_quat = tf2::toMsg(q);
+     pose_stamped.header.seq = seq_id;
+     pose_stamped.header.stamp = ros::Time::now();
+     pose_stamped.header.frame_id = "map";
+     pose_stamped.pose.position.x = true_x;
+     pose_stamped.pose.position.y = true_y;
+     pose_stamped.pose.position.z = 0.0;
+     pose_stamped.pose.orientation = pose_quat;
+     ground_pose_pub.publish(pose_stamped);
+     ground_last_time = ground_current_time;
+
+
+
+}
+
 void pose_update_callback(const geometry_msgs::PoseWithCovarianceStamped &msg)
 {
      pose_x = msg.pose.pose.position.x;
      pose_y = msg.pose.pose.position.y;
      pose_theta = tf2::getYaw(msg.pose.pose.orientation);
+
+}
+void initial_pose_cb(const geometry_msgs::PoseWithCovarianceStamped &msg)
+{
+     true_x = msg.pose.pose.position.x;
+     true_y = msg.pose.pose.position.y;
+     true_theta = tf2::getYaw(msg.pose.pose.orientation);
+     ground_last_time = ros::Time::now();
+
 
 }
 
@@ -65,6 +107,7 @@ int main(int argc, char** argv)
      ros::NodeHandle n;
      ros::Publisher odom_pub = n.advertise<nav_msgs::Odometry>("odom",5); 
      pose_from_odom_pub = n.advertise<geometry_msgs::PoseStamped>("/pose_from_odom",5);
+     ground_pose_pub = n.advertise<geometry_msgs::PoseStamped>("/ground_truth_pose",5);
      ros::Subscriber pose_update_sub = n.subscribe("/pose_update", 2, &pose_update_callback);
      tf2_ros::TransformBroadcaster  odom_broadcaster;
      ros::Subscriber cmd_vel_sub = n.subscribe("/key_vel",10, cmd_vel_callback);
@@ -72,14 +115,16 @@ int main(int argc, char** argv)
      double y = 0.0;
      double th = 0.0;
 
-
+     ros::Subscriber initial_pose_sub = n.subscribe("/initialpose",1, &initial_pose_cb); 
      ros::Time current_time, last_time;
      current_time = ros::Time::now();
      last_time = ros::Time::now();
      pose_current_time = current_time;
      pose_last_time = pose_current_time;
-     ros::Timer timer = n.createTimer(ros::Duration(0.1), calc_pose_from_odom);
-
+     ground_current_time = ros::Time::now();
+     ground_last_time = ros::Time::now();
+     ros::Timer pose_with_odom = n.createTimer(ros::Duration(0.1), calc_pose_from_odom);
+     ros::Timer groundtruth = n.createTimer(ros::Duration(0.1), calc_ground_truth);
 
      ros::Rate r(30.0);
      while(n.ok())
@@ -87,7 +132,6 @@ int main(int argc, char** argv)
 
           ros::spinOnce();               // check for incoming messages
           current_time = ros::Time::now();
-
           //compute odometry in a typical way given the velocities of the robot
           double dt = (current_time - last_time).toSec();
           double delta_x = (vx * cos(th) - vy * sin(th)) * dt;
