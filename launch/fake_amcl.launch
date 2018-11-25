@@ -1,6 +1,8 @@
 <launch>
 
+<node pkg="rviz" type="rviz" name="rviz" args =  "-d $(find fake_odometry)/launch/simulator.rviz" output="screen"/>
 <node pkg="fake_odometry" type="odom_publisher_node" name="odom_publisher_node" output="screen">
+
 <remap from="/pose_update" to="/amcl_pose"/>
 </node>
 
