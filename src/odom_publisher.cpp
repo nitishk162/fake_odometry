@@ -16,6 +16,7 @@ ros::Publisher pose_from_odom_pub, ground_pose_pub;
 uint64_t seq_id = 0;
 double true_x = 0.0, true_y = 0.0, true_theta = 0.0;
 
+void publish_ground_truth_tf(tf2_ros::TransformBroadcaster  &ground_truth_broadcaster, geometry_msgs::PoseStamped &ground_truth_pose);
 
 void calc_pose_from_odom(const ros::TimerEvent& event)
 {
@@ -72,8 +73,27 @@ void calc_ground_truth(const ros::TimerEvent& event)
      pose_stamped.pose.orientation = pose_quat;
      ground_pose_pub.publish(pose_stamped);
      ground_last_time = ground_current_time;
+     tf2_ros::TransformBroadcaster  gt_broadcaster;
+
+     publish_ground_truth_tf(gt_broadcaster, pose_stamped);
+
+}
+
+void publish_ground_truth_tf(tf2_ros::TransformBroadcaster  &ground_truth_broadcaster, geometry_msgs::PoseStamped &ground_truth_pose)
+{
+     geometry_msgs::TransformStamped gt_trans;
+     gt_trans.header.stamp = ground_truth_pose.header.stamp;
+     gt_trans.header.frame_id = "map";
+     gt_trans.child_frame_id = "base_link_ground_truth";
 
 
+     gt_trans.transform.translation.x = ground_truth_pose.pose.position.x;
+     gt_trans.transform.translation.y = ground_truth_pose.pose.position.y;
+     gt_trans.transform.translation.z = 0.0;
+     gt_trans.transform.rotation = ground_truth_pose.pose.orientation;
+
+     //send the transform
+     ground_truth_broadcaster.sendTransform(gt_trans);
 
 }
 
